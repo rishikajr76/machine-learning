@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { 
   BrainCircuit, 
@@ -35,6 +35,7 @@ import {
   Cell
 } from "recharts";
 import { mockMemoryEntries } from "@/lib/mock-data";
+import { MemoryEntry } from "@/types";
 
 // Generate mock vector data for the visualization
 const vectorData = Array.from({ length: 40 }).map((_, i) => ({
@@ -50,15 +51,42 @@ const vectorData = Array.from({ length: 40 }).map((_, i) => ({
 
 export default function MemoryPage() {
   const [search, setSearch] = useState("");
+  const [memoryEntries, setMemoryEntries] = useState<MemoryEntry[]>(mockMemoryEntries);
+  const [loading, setLoading] = useState(false);
+  const [count, setCount] = useState(0);
 
-  const filteredMemory = mockMemoryEntries.filter(entry => 
-    entry.title.toLowerCase().includes(search.toLowerCase()) ||
-    entry.tags.some(tag => tag.toLowerCase().includes(search.toLowerCase()))
-  );
+  useEffect(() => {
+    const fetchCount = async () => {
+      const { apiService } = await import("@/services/api");
+      const res = await apiService.getMemoryCount().catch(() => ({ count: 1200 }));
+      setCount(res.count);
+    };
+    fetchCount();
+  }, []);
+
+  const handleSearch = async () => {
+    if (!search.trim()) {
+      setMemoryEntries(mockMemoryEntries);
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const { apiService } = await import("@/services/api");
+      const results = await apiService.searchMemory(search);
+      setMemoryEntries(results.length > 0 ? results : []);
+    } catch (err) {
+      console.error("Memory search failed", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredMemory = memoryEntries;
 
   return (
     <div className="p-6 lg:p-10 space-y-10 max-w-[1600px] mx-auto">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Agent Memory</h1>
           <p className="text-muted-foreground mt-1">Semantic knowledge base of past reviews and bug patterns.</p>
@@ -66,7 +94,7 @@ export default function MemoryPage() {
         <div className="flex items-center gap-3">
           <Badge variant="outline" className="bg-primary/10 border-primary/20 text-primary px-3 py-1">
             <Database className="w-3 h-3 mr-2" />
-            1.2k Vectors Stored
+            {count.toLocaleString()} Vectors Stored
           </Badge>
           <Button size="sm" variant="outline" className="glass border-white/5">
             <BarChart4 className="w-4 h-4 mr-2" />
@@ -88,9 +116,16 @@ export default function MemoryPage() {
                   className="pl-12 h-14 rounded-2xl glass border-white/10 text-base focus-visible:ring-primary/20"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 />
               </div>
-              <Button className="h-14 px-8 rounded-2xl bg-primary neon-purple font-bold">Search Knowledge</Button>
+              <Button 
+                onClick={handleSearch}
+                disabled={loading}
+                className="h-14 px-8 rounded-2xl bg-primary neon-purple font-bold"
+              >
+                {loading ? "Searching..." : "Search Knowledge"}
+              </Button>
             </div>
           </div>
 

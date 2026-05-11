@@ -10,7 +10,8 @@ import {
   Code2,
   FileSearch,
   Zap,
-  Target
+  Target,
+  ShieldAlert
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";

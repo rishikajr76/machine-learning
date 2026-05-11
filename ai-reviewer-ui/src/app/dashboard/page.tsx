@@ -35,7 +35,9 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { mockMetrics, mockPullRequests } from "@/lib/mock-data";
+import { mockMetrics as defaultMetrics, mockPullRequests as defaultPRs } from "@/lib/mock-data";
+import { useEffect, useState } from "react";
+import { Metrics, PullRequest } from "@/types";
 
 const container = {
   hidden: { opacity: 0 },
@@ -53,6 +55,31 @@ const item = {
 };
 
 export default function DashboardOverview() {
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [prs, setPrs] = useState<PullRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const { apiService } = await import("@/services/api");
+        const [metricsData, reviewsData] = await Promise.all([
+          apiService.getMetrics().catch(() => currentMetrics),
+          apiService.getReviews().catch(() => [])
+        ]);
+        setMetrics(metricsData);
+        setPrs(reviewsData as any || defaultPRs);
+      } catch (err) {
+        console.error("Dashboard fetch failed", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const currentMetrics = metrics || defaultMetrics;
+  const currentPrs = prs.length > 0 ? prs : defaultPRs;
   return (
     <div className="p-6 lg:p-10 space-y-10 max-w-[1600px] mx-auto">
       {/* Header */}
@@ -81,7 +108,7 @@ export default function DashboardOverview() {
       >
         <StatCard 
           title="Total Reviews" 
-          value={mockMetrics.totalReviews.toLocaleString()} 
+          value={currentMetrics.totalReviews.toLocaleString()} 
           change="+12.5%" 
           trend="up"
           icon={CheckCircle2}
@@ -89,7 +116,7 @@ export default function DashboardOverview() {
         />
         <StatCard 
           title="Bugs Detected" 
-          value={mockMetrics.bugsDetected.toLocaleString()} 
+          value={currentMetrics.bugsDetected.toLocaleString()} 
           change="+8.2%" 
           trend="up"
           icon={Bug}
@@ -97,7 +124,7 @@ export default function DashboardOverview() {
         />
         <StatCard 
           title="Avg. Loops" 
-          value={mockMetrics.avgRefinementLoops.toFixed(1)} 
+          value={currentMetrics.avgRefinementLoops.toFixed(1)} 
           change="-0.4" 
           trend="down"
           icon={Clock}
@@ -105,7 +132,7 @@ export default function DashboardOverview() {
         />
         <StatCard 
           title="Critical Vulnerabilities" 
-          value={mockMetrics.criticalVulnerabilitiesPrevented.toString()} 
+          value={currentMetrics.criticalVulnerabilitiesPrevented.toString()} 
           change="+14" 
           trend="up"
           icon={ShieldAlert}
@@ -126,7 +153,7 @@ export default function DashboardOverview() {
           <CardContent>
             <div className="h-[350px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={mockMetrics.reviewActivity}>
+                <LineChart data={currentMetrics.reviewActivity}>
                   <defs>
                     <linearGradient id="colorReviews" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="oklch(0.65 0.28 290)" stopOpacity={0.3}/>
@@ -191,7 +218,7 @@ export default function DashboardOverview() {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={mockMetrics.bugCategories}
+                    data={currentMetrics.bugCategories}
                     cx="50%"
                     cy="50%"
                     innerRadius={60}
@@ -199,7 +226,7 @@ export default function DashboardOverview() {
                     paddingAngle={8}
                     dataKey="value"
                   >
-                    {mockMetrics.bugCategories.map((entry, index) => (
+                    {currentMetrics.bugCategories.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
@@ -214,7 +241,7 @@ export default function DashboardOverview() {
               </ResponsiveContainer>
             </div>
             <div className="space-y-3 mt-6">
-              {mockMetrics.bugCategories.slice(0, 3).map((item, i) => (
+              {currentMetrics.bugCategories.slice(0, 3).map((item, i) => (
                 <div key={i} className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
@@ -248,7 +275,7 @@ export default function DashboardOverview() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {mockPullRequests.map((pr) => (
+                  {currentPrs.map((pr) => (
                     <tr key={pr.id} className="group hover:bg-white/[0.02] transition-colors cursor-pointer">
                       <td className="px-6 py-4">
                         <div className="flex flex-col">
@@ -287,7 +314,7 @@ export default function DashboardOverview() {
             <CardDescription>Efficiency and accuracy scores.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {mockMetrics.agentPerformance.map((agent, i) => (
+            {currentMetrics.agentPerformance.map((agent, i) => (
               <div key={i} className="space-y-2">
                 <div className="flex items-center justify-between text-xs font-bold">
                   <span>{agent.agent} Agent</span>

@@ -35,19 +35,48 @@ import { mockReview } from "@/lib/mock-data";
 export default function ReviewPage() {
   const [activeTab, setActiveTab] = useState("proposer");
   const [editorTheme, setEditorTheme] = useState("vs-dark");
-  const { activeReview, setActiveReview, isAnalyzing, setAnalyzing } = useReviewStore();
+  const { activeReview, setActiveReview, isAnalyzing, setAnalyzing, handleWSEvent } = useReviewStore();
+  const [code, setCode] = useState(mockReview.files[0].content);
 
   useEffect(() => {
-    // For demo, set mock review on load
-    setActiveReview(mockReview);
-  }, [setActiveReview]);
+    // Initial setup with mock or last review
+    if (!activeReview) {
+      setActiveReview(mockReview);
+    }
+  }, [activeReview, setActiveReview]);
 
   if (!activeReview) return null;
 
-  const handleRunReview = () => {
+  const handleRunReview = async () => {
+    if (isAnalyzing) return;
+    
     setAnalyzing(true);
-    // Simulate re-running review
-    setTimeout(() => setAnalyzing(false), 3000);
+    try {
+      const { apiService } = await import("@/services/api");
+      const { wsService } = await import("@/services/websocket");
+
+      // 1. Create/Start review record
+      const review = await apiService.startReview({
+        files: [{ path: "auth-service.ts", language: "typescript", content: code }],
+        context: "Adversarial security review requested."
+      });
+
+      setActiveReview(review);
+
+      // 2. Connect WebSocket for live updates
+      wsService.connect(review.id, (data) => {
+        handleWSEvent(data);
+        if (data.type === 'evaluate') {
+          setAnalyzing(false);
+          // Fetch final review state to get the full patch and scoring
+          apiService.getReview(review.id).then(setActiveReview);
+        }
+      });
+
+    } catch (err) {
+      console.error("Failed to run review:", err);
+      setAnalyzing(false);
+    }
   };
 
   return (
@@ -125,7 +154,8 @@ export default function ReviewPage() {
                   height="100%"
                   defaultLanguage="typescript"
                   theme={editorTheme}
-                  value={activeReview.files[0].content}
+                  value={code}
+                  onChange={(val) => setCode(val || "")}
                   options={{
                     fontSize: 14,
                     fontFamily: "var(--font-geist-mono)",
